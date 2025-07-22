@@ -1019,14 +1019,7 @@ export default function App() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={resetState}
-                  className="px-8 py-3 bg-white text-gray-700 font-semibold rounded-xl shadow-md hover:shadow-lg border border-gray-200 transition-all duration-300 flex items-center justify-center gap-2"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Verify Another
-                </button>
+              <div className="flex flex-col gap-4 justify-center">
                 {factCheckResult?.source_content?.url && (
                   <a
                     href={factCheckResult.source_content.url}
@@ -1127,6 +1120,13 @@ export default function App() {
                     </div>
                   </div>
                 )}
+                <button
+                  onClick={resetState}
+                  className="px-8 py-3 bg-white text-gray-700 font-semibold rounded-xl shadow-md hover:shadow-lg border border-gray-200 transition-all duration-300 flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Verify Another
+                </button>
               </div>
             </div>
           )}
