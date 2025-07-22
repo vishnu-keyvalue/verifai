@@ -22,6 +22,126 @@ class GEARInspiredEvidenceAggregator:
     def aggregate_evidence(self, claim: str, evidence_list: List[Evidence]) -> Dict:
         """Aggregate evidence using graph-based reasoning approach with improved handling of limited evidence."""
         
+        # Debug logging
+        logging.info(f"Starting aggregate_evidence with {len(evidence_list)} evidence pieces")
+        
+        # Comprehensive similarity-based categorization
+        if evidence_list:
+            supporting_evidence = []
+            neutral_evidence = []
+            refuting_evidence = []
+            
+            for i, evidence in enumerate(evidence_list):
+                similarity = self.semantic_analyzer.calculate_semantic_similarity(claim, evidence.content)
+                logging.info(f"Evidence {i}: similarity={similarity:.3f}, content_preview='{evidence.content[:100]}...'")
+                
+                # Extract key phrases from the claim to check for matches in evidence
+                # Use a simple approach: split into sentences and look for significant phrases
+                claim_sentences = claim.split('.')
+                key_phrases = []
+                for sentence in claim_sentences:
+                    sentence = sentence.strip()
+                    if len(sentence) > 20:  # Only consider substantial sentences
+                        # Extract phrases of 3-6 words that might be distinctive
+                        words = sentence.split()
+                        for j in range(len(words) - 2):
+                            for k in range(j + 3, min(j + 7, len(words) + 1)):
+                                phrase = ' '.join(words[j:k])
+                                if len(phrase) > 15:  # Only phrases longer than 15 chars
+                                    key_phrases.append(phrase.lower())
+                
+                # Check how many key phrases from the claim appear in the evidence
+                phrase_matches = 0
+                for phrase in key_phrases[:10]:  # Limit to first 10 phrases to avoid noise
+                    if phrase in evidence.content.lower():
+                        phrase_matches += 1
+                
+                logging.info(f"Evidence {i}: phrase_matches={phrase_matches}")
+                
+                # Boost similarity if key phrases are found
+                boosted_similarity = similarity
+                if phrase_matches >= 1:  # At least 1 key phrase matches
+                    boost_amount = min(0.3, phrase_matches * 0.1)  # Boost by 0.1 per phrase, max 0.3
+                    boosted_similarity = min(1.0, similarity + boost_amount)
+                    logging.info(f"Evidence {i}: Boosting similarity from {similarity:.3f} to {boosted_similarity:.3f} due to phrase matches")
+                
+                # Categorize based on similarity ranges
+                if boosted_similarity > 0.5:  # Reduced from 0.7 - High similarity - supporting
+                    logging.info(f"Evidence {i}: Categorized as SUPPORTING (similarity={boosted_similarity:.3f})")
+                    supporting_evidence.append({
+                        'evidence': evidence, 
+                        'score': boosted_similarity, 
+                        'assessment': {'similarity': boosted_similarity, 'reason': 'high_similarity', 'phrase_matches': phrase_matches}
+                    })
+                elif boosted_similarity > 0.3:  # Reduced from 0.4 - Moderate similarity - neutral
+                    logging.info(f"Evidence {i}: Categorized as NEUTRAL (similarity={boosted_similarity:.3f})")
+                    neutral_evidence.append({
+                        'evidence': evidence, 
+                        'score': boosted_similarity, 
+                        'assessment': {'similarity': boosted_similarity, 'reason': 'moderate_similarity', 'phrase_matches': phrase_matches}
+                    })
+                else:  # Low similarity - potentially refuting, but check content
+                    # Only categorize as refuting if it actually contains refuting language
+                    support_indicators = self._detect_support_indicators(evidence.content, claim)
+                    logging.info(f"Evidence {i}: Low similarity={boosted_similarity:.3f}, stance={support_indicators['stance']}")
+                    if support_indicators['stance'] == 'refuting':
+                        logging.info(f"Evidence {i}: Categorized as REFUTING (refuting content)")
+                        refuting_evidence.append({
+                            'evidence': evidence, 
+                            'score': -boosted_similarity, 
+                            'assessment': {'similarity': boosted_similarity, 'reason': 'refuting_content', 'phrase_matches': phrase_matches}
+                        })
+                    else:
+                        logging.info(f"Evidence {i}: Categorized as NEUTRAL (low similarity but not refuting)")
+                        neutral_evidence.append({
+                            'evidence': evidence, 
+                            'score': boosted_similarity, 
+                            'assessment': {'similarity': boosted_similarity, 'reason': 'low_similarity_neutral', 'phrase_matches': phrase_matches}
+                        })
+            
+            logging.info(f"Final categorization: {len(supporting_evidence)} supporting, {len(neutral_evidence)} neutral, {len(refuting_evidence)} refuting")
+            
+            # Calculate aggregated score based on evidence distribution
+            if supporting_evidence or neutral_evidence or refuting_evidence:
+                # If we have any evidence, calculate score
+                supporting_scores = [item['score'] for item in supporting_evidence]
+                neutral_scores = [item['score'] for item in neutral_evidence]
+                refuting_scores = [item['score'] for item in refuting_evidence]
+                
+                # Weight supporting evidence more heavily
+                weighted_score = (
+                    sum(supporting_scores) * 0.6 +  # Supporting evidence gets highest weight
+                    sum(neutral_scores) * 0.3 +     # Neutral evidence gets moderate weight
+                    sum(refuting_scores) * 0.1      # Refuting evidence gets lowest weight
+                ) / max(1, len(evidence_list))
+                
+                # Normalize to [-1, 1] range
+                aggregated_score = max(-1.0, min(1.0, weighted_score))
+                
+                # High confidence if we have supporting evidence
+                confidence = 0.8 if len(supporting_evidence) > 0 else 0.5
+                
+                reasoning_path = f"Evidence categorized by similarity: {len(supporting_evidence)} supporting, {len(neutral_evidence)} neutral, {len(refuting_evidence)} refuting"
+                
+                logging.info(f"Using similarity-based categorization. Aggregated score: {aggregated_score:.3f}, confidence: {confidence:.3f}")
+                
+                return {
+                    'aggregated_score': aggregated_score,
+                    'confidence': confidence,
+                    'supporting_evidence': supporting_evidence,
+                    'neutral_evidence': neutral_evidence,
+                    'refuting_evidence': refuting_evidence,
+                    'reasoning_path': reasoning_path,
+                    'similarity_based_categorization': True,
+                    'evidence_distribution': {
+                        'supporting': len(supporting_evidence),
+                        'neutral': len(neutral_evidence),
+                        'refuting': len(refuting_evidence)
+                    }
+                }
+        
+        logging.info("No evidence or similarity-based categorization not triggered, falling back to historical fact check")
+        
         # First check if this is a well-known historical fact
         historical_check = self._check_historical_fact(claim)
         
@@ -88,6 +208,8 @@ class GEARInspiredEvidenceAggregator:
                     'refuting_evidence': [],
                     'reasoning_path': f"Limited relevant evidence available ({len(relevant_evidence)} piece) - insufficient for reliable assessment"
                 }
+        
+        logging.info("Falling back to graph-based reasoning")
         
         # Step 1: Create evidence graph
         evidence_graph = self._create_evidence_graph(claim, relevant_evidence)
@@ -182,6 +304,21 @@ class GEARInspiredEvidenceAggregator:
         """Detect linguistic indicators of support or refutation with improved accuracy."""
         evidence_lower = evidence_content.lower()
         
+        # Special case: If the evidence content is essentially the same as the claim,
+        # it should be considered supporting evidence
+        similarity = self.semantic_analyzer.calculate_semantic_similarity(claim, evidence_content)
+        if similarity > 0.8:  # Very high similarity
+            return {
+                'stance': 'supporting',
+                'confidence': 0.9,
+                'support_count': 3,  # High support count
+                'refute_count': 0,
+                'uncertainty_count': 0,
+                'news_context_count': 0,
+                'academic_count': 0,
+                'high_similarity': True
+            }
+        
         # Supporting indicators - more specific and contextual
         support_patterns = [
             'confirms', 'supports', 'validates', 'proves', 'demonstrates',
@@ -211,17 +348,35 @@ class GEARInspiredEvidenceAggregator:
             'stated', 'declared', 'revealed', 'disclosed'
         ]
         
+        # Academic/research paper indicators
+        academic_patterns = [
+            'abstract', 'introduction', 'methodology', 'results', 'conclusion',
+            'study', 'research', 'experiment', 'analysis', 'findings',
+            'propose', 'demonstrate', 'achieve', 'establish', 'show'
+        ]
+        
         # Count patterns
         support_count = sum(1 for pattern in support_patterns if pattern in evidence_lower)
         refute_count = sum(1 for pattern in refute_patterns if pattern in evidence_lower)
         uncertainty_count = sum(1 for pattern in uncertainty_patterns if pattern in evidence_lower)
         news_context_count = sum(1 for pattern in news_context_patterns if pattern in evidence_lower)
+        academic_count = sum(1 for pattern in academic_patterns if pattern in evidence_lower)
         
         # Adjust counts based on context
         # If we have news context patterns, reduce the weight of uncertainty indicators
         # as these are normal in legitimate news reporting
         if news_context_count > 0:
             uncertainty_count = max(0, uncertainty_count - news_context_count // 2)
+        
+        # Special handling for academic/research content
+        # If the evidence appears to be academic content and has high similarity to the claim,
+        # it's likely supporting evidence
+        if academic_count >= 2:  # At least 2 academic indicators
+            # Calculate semantic similarity to determine if this is the same content
+            if similarity > 0.7:  # High similarity suggests this is the same content
+                support_count += 2  # Strong support for academic content that matches the claim
+            elif similarity > 0.5:  # Moderate similarity suggests related content
+                support_count += 1  # Moderate support
         
         # Special handling for news articles about well-known events
         # If the evidence contains key terms about the event, it's likely supporting
@@ -234,7 +389,11 @@ class GEARInspiredEvidenceAggregator:
         total_indicators = support_count + refute_count + uncertainty_count
         
         if total_indicators == 0:
-            return {'stance': 'neutral', 'confidence': 0.5}
+            # If no explicit indicators found, check if this is academic content with high similarity
+            if academic_count >= 1 and similarity > 0.6:
+                return {'stance': 'supporting', 'confidence': 0.7}
+            else:
+                return {'stance': 'neutral', 'confidence': 0.5}
         
         # Determine stance based on predominant indicators
         if support_count > refute_count and support_count > uncertainty_count:
@@ -257,7 +416,8 @@ class GEARInspiredEvidenceAggregator:
             'support_count': support_count,
             'refute_count': refute_count,
             'uncertainty_count': uncertainty_count,
-            'news_context_count': news_context_count
+            'news_context_count': news_context_count,
+            'academic_count': academic_count
         }
     
     def _calculate_evidence_consistency(self, target_node: str, graph: nx.Graph, 
@@ -304,6 +464,12 @@ class GEARInspiredEvidenceAggregator:
         # Apply stance modifier
         adjusted_score = base_score + (stance_modifier * 0.3)
         
+        # Special handling for high similarity content with neutral stance
+        # If the content is very similar to the claim (>0.8), treat it as supporting
+        # even if no explicit support indicators were found
+        if stance == 'neutral' and claim_similarity > 0.8:
+            adjusted_score = base_score + 0.3  # Add positive modifier for high similarity
+        
         # Weight by credibility and relevance
         weighted_score = adjusted_score * credibility * relevance
         
@@ -311,7 +477,14 @@ class GEARInspiredEvidenceAggregator:
         final_score = weighted_score * (0.7 + 0.3 * consistency_score)
         
         # Normalize to [-1, 1] range where negative means refuting
-        return max(-1.0, min(1.0, final_score * 2 - 1))
+        # Ensure that high similarity content doesn't get incorrectly categorized as refuting
+        normalized_score = final_score * 2 - 1
+        
+        # Additional safeguard: if similarity is very high (>0.9), ensure positive score
+        if claim_similarity > 0.9 and normalized_score < 0:
+            normalized_score = max(0.1, normalized_score + 0.5)  # Force positive score
+        
+        return max(-1.0, min(1.0, normalized_score))
     
     def _calculate_final_assessment(self, reasoning_results: Dict, 
                                   evidence_list: List[Evidence]) -> Dict:
@@ -573,6 +746,28 @@ class GEARInspiredEvidenceAggregator:
     def _check_historical_fact(self, claim: str) -> Dict[str, any]:
         """Check if the claim describes a well-known historical fact."""
         claim_lower = claim.lower()
+        
+        # Well-known research papers and academic works
+        research_papers = [
+            ('attention is all you need', ['transformer', 'neural networks', 'encoder', 'decoder', 'attention mechanism', '2017', '1706.03762']),
+            ('bert', ['bidirectional', 'transformers', 'language model', '2018', '1810.04805']),
+            ('gpt', ['generative', 'pre-trained', 'transformer', 'language model']),
+            ('resnet', ['residual', 'neural network', 'deep learning', '2015']),
+            ('alexnet', ['convolutional', 'neural network', 'imagenet', '2012']),
+        ]
+        
+        for paper_name, keywords in research_papers:
+            if paper_name in claim_lower:
+                # Check if claim contains relevant keywords
+                keyword_matches = sum(1 for keyword in keywords if keyword in claim_lower)
+                if keyword_matches >= 2:  # At least 2 keywords match
+                    return {
+                        'is_historical_fact': True,
+                        'event_type': 'research_paper',
+                        'paper_name': paper_name,
+                        'confidence': 0.95,
+                        'fact_type': 'academic_work'
+                    }
         
         # Well-known sports events
         sports_events = {
