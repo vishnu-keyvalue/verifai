@@ -134,39 +134,57 @@ def analyze_frequency_domain(image_array):
         frequency_score = 0.0
         frequency_reasons = []
         
-        if freq_entropy < 2.0:  # Very strict threshold for low entropy
-            frequency_score += 0.5
+        # More sensitive entropy thresholds
+        if freq_entropy < 2.5:  # Very strict threshold for low entropy
+            frequency_score += 0.6
             frequency_reasons.append("Extremely low frequency entropy suggests artificial patterns")
             logger.info("Frequency analysis: Extremely low entropy detected")
-        elif freq_entropy < 3.0:  # Strict threshold
-            frequency_score += 0.3
+        elif freq_entropy < 3.5:  # Strict threshold
+            frequency_score += 0.4
             frequency_reasons.append("Very low frequency entropy suggests artificial patterns")
             logger.info("Frequency analysis: Very low entropy detected")
-        elif freq_entropy < 4.0:  # Moderate threshold
-            frequency_score += 0.1
+        elif freq_entropy < 4.5:  # Moderate threshold
+            frequency_score += 0.2
             frequency_reasons.append("Low frequency entropy suggests artificial patterns")
             logger.info("Frequency analysis: Low entropy detected")
             
-        if freq_std < 0.8:  # Very strict threshold for low std
-            frequency_score += 0.4
+        # More sensitive std thresholds
+        if freq_std < 1.2:  # Very strict threshold for low std
+            frequency_score += 0.5
             frequency_reasons.append("Very uniform frequency distribution")
             logger.info("Frequency analysis: Very low std detected")
-        elif freq_std < 1.5:  # Strict threshold
-            frequency_score += 0.2
+        elif freq_std < 2.0:  # Strict threshold
+            frequency_score += 0.3
             frequency_reasons.append("Uniform frequency distribution")
             logger.info("Frequency analysis: Low std detected")
+        elif freq_std < 3.0:  # Moderate threshold
+            frequency_score += 0.1
+            frequency_reasons.append("Somewhat uniform frequency distribution")
+            logger.info("Frequency analysis: Moderate std detected")
             
         # Check for grid-like patterns (common in AI-generated images)
         grid_score = detect_grid_patterns(magnitude_spectrum)
         logger.info(f"Frequency analysis: grid_score={grid_score:.3f}")
-        if grid_score > 0.8:  # Higher threshold for grid patterns
-            frequency_score += 0.3
+        if grid_score > 0.7:  # Higher threshold for grid patterns
+            frequency_score += 0.4
             frequency_reasons.append("Strong grid-like frequency patterns detected")
             logger.info("Frequency analysis: Strong grid patterns detected")
-        elif grid_score > 0.6:
-            frequency_score += 0.1
+        elif grid_score > 0.5:
+            frequency_score += 0.2
             frequency_reasons.append("Grid-like frequency patterns detected")
             logger.info("Frequency analysis: Grid patterns detected")
+        elif grid_score > 0.3:
+            frequency_score += 0.1
+            frequency_reasons.append("Some grid-like frequency patterns detected")
+            logger.info("Frequency analysis: Some grid patterns detected")
+        
+        # Additional check for frequency domain artifacts
+        # AI-generated images often have specific frequency domain characteristics
+        freq_range = np.max(magnitude_spectrum) - np.min(magnitude_spectrum)
+        if freq_range < 5.0:  # Very low dynamic range in frequency domain
+            frequency_score += 0.3
+            frequency_reasons.append("Low frequency domain dynamic range")
+            logger.info("Frequency analysis: Low dynamic range detected")
         
         final_score = min(frequency_score, 1.0)
         logger.info(f"Frequency analysis: final_score={final_score:.3f}, reasons={frequency_reasons}")
@@ -178,7 +196,8 @@ def analyze_frequency_domain(image_array):
                 'freq_std': float(freq_std),
                 'freq_mean': float(freq_mean),
                 'freq_entropy': float(freq_entropy),
-                'grid_score': float(grid_score)
+                'grid_score': float(grid_score),
+                'freq_range': float(freq_range)
             }
         }
         
@@ -216,43 +235,88 @@ def analyze_statistical_properties(image_array):
         if len(image_array.shape) == 3:
             color_analysis = analyze_color_distribution(image_array)
         
-        # Score based on statistical properties
+        # Score based on statistical properties - more sensitive thresholds
         stats_score = 0.0
         stats_reasons = []
         
-        # Check for unusual intensity distributions
-        if std_intensity < 20:  # Very low variance suggests artificial image
-            stats_score += 0.3
+        # Check for unusual intensity distributions - more sensitive
+        if std_intensity < 25:  # Very low variance suggests artificial image
+            stats_score += 0.4
             stats_reasons.append("Very low intensity variance")
-        elif std_intensity < 35:  # Low variance
-            stats_score += 0.15
+        elif std_intensity < 40:  # Low variance
+            stats_score += 0.2
             stats_reasons.append("Low intensity variance")
-            
-        if abs(skewness) < 0.05:  # Very symmetric distribution
-            stats_score += 0.25
-            stats_reasons.append("Unusually symmetric intensity distribution")
-        elif abs(skewness) < 0.15:  # Somewhat symmetric
+        elif std_intensity < 60:  # Moderate variance
             stats_score += 0.1
-            stats_reasons.append("Symmetric intensity distribution")
+            stats_reasons.append("Moderate intensity variance")
             
-        if local_variance < 50:  # Very low texture
+        # Check for unusual skewness patterns
+        if abs(skewness) < 0.1:  # Very symmetric distribution
             stats_score += 0.3
-            stats_reasons.append("Very low texture variation")
-        elif local_variance < 150:  # Low texture
+            stats_reasons.append("Unusually symmetric intensity distribution")
+        elif abs(skewness) < 0.2:  # Somewhat symmetric
             stats_score += 0.15
+            stats_reasons.append("Symmetric intensity distribution")
+        elif abs(skewness) < 0.3:  # Moderately symmetric
+            stats_score += 0.05
+            stats_reasons.append("Somewhat symmetric intensity distribution")
+            
+        # Check for unusual kurtosis (peakedness)
+        if abs(kurtosis) < 0.5:  # Very flat distribution
+            stats_score += 0.2
+            stats_reasons.append("Unusually flat intensity distribution")
+        elif abs(kurtosis) < 1.0:  # Somewhat flat
+            stats_score += 0.1
+            stats_reasons.append("Flat intensity distribution")
+            
+        # Check for texture patterns - more sensitive
+        if local_variance < 100:  # Very low texture
+            stats_score += 0.4
+            stats_reasons.append("Very low texture variation")
+        elif local_variance < 200:  # Low texture
+            stats_score += 0.2
             stats_reasons.append("Low texture variation")
+        elif local_variance < 300:  # Moderate texture
+            stats_score += 0.1
+            stats_reasons.append("Moderate texture variation")
             
-        if edge_density < 0.005:  # Very few edges
-            stats_score += 0.25
+        # Check for edge patterns - more sensitive
+        if edge_density < 0.01:  # Very few edges
+            stats_score += 0.3
             stats_reasons.append("Very low edge density")
-        elif edge_density < 0.015:  # Low edge density
-            stats_score += 0.1
+        elif edge_density < 0.02:  # Low edge density
+            stats_score += 0.15
             stats_reasons.append("Low edge density")
+        elif edge_density < 0.03:  # Moderate edge density
+            stats_score += 0.05
+            stats_reasons.append("Moderate edge density")
             
-        # Color analysis
-        if color_analysis.get('saturation_score', 0) > 0.5:
-            stats_score += 0.1
+        # Color analysis - more sensitive
+        if color_analysis.get('saturation_score', 0) > 0.3:
+            stats_score += 0.2
             stats_reasons.append("Unusual color saturation patterns")
+        elif color_analysis.get('saturation_score', 0) > 0.1:
+            stats_score += 0.1
+            stats_reasons.append("Somewhat unusual color patterns")
+        
+        # Additional checks for AI-specific patterns
+        # Check for unusual mean intensity (too bright or too dark)
+        if mean_intensity < 30 or mean_intensity > 225:
+            stats_score += 0.2
+            stats_reasons.append("Unusual overall brightness")
+        elif mean_intensity < 50 or mean_intensity > 200:
+            stats_score += 0.1
+            stats_reasons.append("Somewhat unusual brightness")
+        
+        # Check for hue entropy (color variety)
+        if 'hue_entropy' in color_analysis:
+            hue_entropy = color_analysis['hue_entropy']
+            if hue_entropy < 4.0:  # Very low color variety
+                stats_score += 0.2
+                stats_reasons.append("Very low color variety")
+            elif hue_entropy < 5.0:  # Low color variety
+                stats_score += 0.1
+                stats_reasons.append("Low color variety")
         
         return {
             'score': min(stats_score, 1.0),
@@ -280,29 +344,69 @@ def analyze_artifacts(image_array):
         artifacts_score = 0.0
         artifact_reasons = []
         
-        # Check for compression artifacts
+        # Check for compression artifacts - more sensitive
         compression_score = detect_compression_artifacts(image_array)
-        if compression_score > 0.3:
-            artifacts_score += 0.2
-            artifact_reasons.append("Compression artifacts detected")
-        
-        # Check for repeating patterns
-        pattern_score = detect_repeating_patterns(image_array)
-        if pattern_score > 0.4:
+        if compression_score > 0.2:  # Lower threshold
             artifacts_score += 0.3
+            artifact_reasons.append("Compression artifacts detected")
+        elif compression_score > 0.1:  # Even lower threshold
+            artifacts_score += 0.15
+            artifact_reasons.append("Some compression artifacts detected")
+        
+        # Check for repeating patterns - more sensitive
+        pattern_score = detect_repeating_patterns(image_array)
+        if pattern_score > 0.3:  # Lower threshold
+            artifacts_score += 0.4
             artifact_reasons.append("Repeating patterns detected")
+        elif pattern_score > 0.15:  # Even lower threshold
+            artifacts_score += 0.2
+            artifact_reasons.append("Some repeating patterns detected")
         
-        # Check for unrealistic textures
+        # Check for unrealistic textures - more sensitive
         texture_score = analyze_texture_realism(image_array)
-        if texture_score > 0.5:
-            artifacts_score += 0.25
+        if texture_score > 0.4:  # Lower threshold
+            artifacts_score += 0.3
             artifact_reasons.append("Unrealistic texture patterns")
+        elif texture_score > 0.2:  # Even lower threshold
+            artifacts_score += 0.15
+            artifact_reasons.append("Some unrealistic texture patterns")
         
-        # Check for geometric inconsistencies
+        # Check for geometric inconsistencies - more sensitive
         geometry_score = detect_geometric_inconsistencies(image_array)
-        if geometry_score > 0.4:
-            artifacts_score += 0.25
+        if geometry_score > 0.3:  # Lower threshold
+            artifacts_score += 0.3
             artifact_reasons.append("Geometric inconsistencies detected")
+        elif geometry_score > 0.15:  # Even lower threshold
+            artifacts_score += 0.15
+            artifact_reasons.append("Some geometric inconsistencies detected")
+        
+        # Additional artifact checks
+        # Check for edge artifacts (common in AI-generated images)
+        if len(image_array.shape) == 3:
+            gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = image_array
+        
+        # Check for unusual edge patterns
+        edges = cv2.Canny(gray, 50, 150)
+        edge_histogram = np.histogram(edges, bins=256)[0]
+        edge_entropy = calculate_entropy(edge_histogram)
+        
+        if edge_entropy < 2.0:  # Very low edge entropy suggests artificial patterns
+            artifacts_score += 0.2
+            artifact_reasons.append("Unusual edge patterns detected")
+        elif edge_entropy < 3.0:  # Low edge entropy
+            artifacts_score += 0.1
+            artifact_reasons.append("Some unusual edge patterns detected")
+        
+        # Check for noise patterns (AI images often have specific noise characteristics)
+        noise_level = np.std(gray.astype(float) - cv2.GaussianBlur(gray, (5, 5), 0).astype(float))
+        if noise_level < 2.0:  # Very low noise suggests artificial image
+            artifacts_score += 0.2
+            artifact_reasons.append("Unusually low noise level")
+        elif noise_level < 4.0:  # Low noise
+            artifacts_score += 0.1
+            artifact_reasons.append("Low noise level")
         
         return {
             'score': min(artifacts_score, 1.0),
@@ -311,7 +415,9 @@ def analyze_artifacts(image_array):
                 'compression_score': float(compression_score),
                 'pattern_score': float(pattern_score),
                 'texture_score': float(texture_score),
-                'geometry_score': float(geometry_score)
+                'geometry_score': float(geometry_score),
+                'edge_entropy': float(edge_entropy),
+                'noise_level': float(noise_level)
             }
         }
         
@@ -339,17 +445,58 @@ def analyze_with_deep_learning(image):
         feature_std = np.std(feature_vector)
         feature_entropy = calculate_entropy(feature_vector)
         
-        # Score based on feature characteristics
+        # Score based on feature characteristics - more sensitive
         dl_score = 0.0
         dl_reasons = []
         
-        if feature_std < 1.0:  # Low feature variance
-            dl_score += 0.3
+        # More sensitive thresholds for feature variance
+        if feature_std < 1.5:  # Very low feature variance
+            dl_score += 0.4
+            dl_reasons.append("Very low feature variance in deep learning analysis")
+        elif feature_std < 2.5:  # Low feature variance
+            dl_score += 0.2
             dl_reasons.append("Low feature variance in deep learning analysis")
+        elif feature_std < 3.5:  # Moderate feature variance
+            dl_score += 0.1
+            dl_reasons.append("Moderate feature variance in deep learning analysis")
             
-        if feature_entropy < 5.0:  # Low feature entropy
+        # More sensitive thresholds for feature entropy
+        if feature_entropy < 3.0:  # Very low feature entropy
+            dl_score += 0.4
+            dl_reasons.append("Very low feature entropy suggests artificial patterns")
+        elif feature_entropy < 5.0:  # Low feature entropy
             dl_score += 0.2
             dl_reasons.append("Low feature entropy suggests artificial patterns")
+        elif feature_entropy < 7.0:  # Moderate feature entropy
+            dl_score += 0.1
+            dl_reasons.append("Moderate feature entropy suggests some artificial patterns")
+        
+        # Additional checks for AI-specific feature patterns
+        # Check for feature distribution skewness
+        feature_skewness = calculate_skewness(feature_vector)
+        if abs(feature_skewness) < 0.1:  # Very symmetric feature distribution
+            dl_score += 0.2
+            dl_reasons.append("Unusually symmetric feature distribution")
+        elif abs(feature_skewness) < 0.3:  # Somewhat symmetric
+            dl_score += 0.1
+            dl_reasons.append("Symmetric feature distribution")
+        
+        # Check for feature kurtosis (peakedness)
+        feature_kurtosis = calculate_kurtosis(feature_vector)
+        if abs(feature_kurtosis) < 0.5:  # Very flat feature distribution
+            dl_score += 0.2
+            dl_reasons.append("Unusually flat feature distribution")
+        elif abs(feature_kurtosis) < 1.0:  # Somewhat flat
+            dl_score += 0.1
+            dl_reasons.append("Flat feature distribution")
+        
+        # Check for feature mean (unusual values)
+        if abs(feature_mean) > 10.0:  # Very high or low mean
+            dl_score += 0.2
+            dl_reasons.append("Unusual feature mean values")
+        elif abs(feature_mean) > 5.0:  # High or low mean
+            dl_score += 0.1
+            dl_reasons.append("Somewhat unusual feature mean values")
         
         return {
             'score': min(dl_score, 1.0),
@@ -357,7 +504,9 @@ def analyze_with_deep_learning(image):
             'metrics': {
                 'feature_mean': float(feature_mean),
                 'feature_std': float(feature_std),
-                'feature_entropy': float(feature_entropy)
+                'feature_entropy': float(feature_entropy),
+                'feature_skewness': float(feature_skewness),
+                'feature_kurtosis': float(feature_kurtosis)
             }
         }
         
@@ -370,12 +519,12 @@ def combine_analyses(results):
     Combine all analysis results to make final decision.
     """
     try:
-        # Weight different analyses
+        # Weight different analyses - adjusted weights for better sensitivity
         weights = {
-            'frequency_analysis': 0.3,
-            'statistical_analysis': 0.25,
-            'artifact_analysis': 0.3,
-            'deep_learning_analysis': 0.15
+            'frequency_analysis': 0.35,  # Increased weight for frequency analysis
+            'statistical_analysis': 0.20,  # Reduced weight
+            'artifact_analysis': 0.25,   # Reduced weight
+            'deep_learning_analysis': 0.20  # Increased weight
         }
         
         total_score = 0.0
@@ -396,18 +545,49 @@ def combine_analyses(results):
         else:
             final_score = 0.0
         
-        # Determine if likely AI-generated - lower threshold for better sensitivity
-        is_likely_ai = final_score > 0.4
+        # Improved decision logic with better thresholds
+        # Lower threshold for AI detection (more sensitive)
+        is_likely_ai = final_score > 0.35  # Reduced from 0.4
         
-        # Generate explanation
+        # Additional logic: if any single analysis has a very high score, flag as AI
+        high_score_analyses = []
+        for analysis_name, analysis in results.items():
+            if 'score' in analysis and analysis['score'] > 0.7:  # High individual score
+                high_score_analyses.append(analysis_name)
+        
+        # If we have multiple high-scoring analyses, increase confidence
+        if len(high_score_analyses) >= 2:
+            is_likely_ai = True
+            final_score = max(final_score, 0.6)  # Boost confidence
+        
+        # Special case: if frequency analysis alone is very high, it's likely AI
+        if 'frequency_analysis' in results and results['frequency_analysis'].get('score', 0) > 0.8:
+            is_likely_ai = True
+            final_score = max(final_score, 0.7)
+        
+        # Generate explanation with better logic
         if is_likely_ai:
-            reason = f"Multiple analysis techniques detected patterns consistent with AI-generated content (AI likelihood: {final_score:.2f})."
+            if final_score > 0.7:
+                reason = f"Strong evidence of AI-generated content detected (AI likelihood: {final_score:.2f})."
+            elif final_score > 0.5:
+                reason = f"Multiple indicators suggest AI-generated content (AI likelihood: {final_score:.2f})."
+            else:
+                reason = f"Some indicators suggest AI-generated content (AI likelihood: {final_score:.2f})."
         else:
-            reason = f"Analysis suggests this is likely a real image (AI likelihood: {final_score:.2f})."
+            if final_score < 0.2:
+                reason = f"Analysis suggests this is likely a real image (AI likelihood: {final_score:.2f})."
+            else:
+                reason = f"Analysis is inconclusive but leans toward real image (AI likelihood: {final_score:.2f})."
         
         # Add specific reasons if available
         if all_reasons:
-            reason += f" Key indicators: {', '.join(all_reasons[:3])}."
+            # Filter out redundant reasons and limit to most important ones
+            unique_reasons = list(dict.fromkeys(all_reasons))  # Remove duplicates while preserving order
+            reason += f" Key indicators: {', '.join(unique_reasons[:3])}."
+        
+        # Add analysis summary
+        if high_score_analyses:
+            reason += f" High-confidence detections: {', '.join(high_score_analyses)}."
         
         return {
             "is_likely_ai": is_likely_ai,
