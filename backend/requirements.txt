@@ -81,6 +81,7 @@ safetensors==0.5.3
 scikit-learn==1.7.1
 scipy==1.15.3
 sentence-transformers==5.0.0
+opencv-python==4.9.0.80
 sgmllib3k==1.0.0
 six==1.17.0
 soupsieve==2.7

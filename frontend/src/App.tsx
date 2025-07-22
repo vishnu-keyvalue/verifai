@@ -32,6 +32,13 @@ interface AnalysisDetails {
     prediction: string;
     confidence: number;
   };
+  detailedScores?: {
+    frequency_analysis: number;
+    statistical_analysis: number;
+    artifact_analysis: number;
+    deep_learning_analysis: number;
+  };
+  techniquesUsed?: string[];
 }
 
 // Type for the Fact-Check result
@@ -403,8 +410,25 @@ export default function App() {
       } else if (data.claim && data.verdict && !data.verdict_analysis) {
         // This is a text fact-check response
         setTextFactCheckResult(data as TextFactCheckResult);
+      } else if (data.details && data.details.analysis_method === "Multi-technique AI detection") {
+        // This is the new AI detection response format
+        setAnalysisDetails({
+          confidence: Math.round(data.confidence * 100),
+          reasons: [
+            {
+              icon: data.is_likely_ai ? "x" : "check",
+              text: data.details.reason,
+            },
+          ],
+          modelPrediction: {
+            prediction: data.is_likely_ai ? "AI Generated" : "Real Image",
+            confidence: Math.round(data.confidence * 100),
+          },
+          detailedScores: data.details.detailed_scores,
+          techniquesUsed: data.details.techniques_used,
+        });
       } else if (data.details && data.details.model_top_prediction) {
-        // This is an AI detection response
+        // This is the old AI detection response format (fallback)
         setAnalysisDetails({
           confidence: Math.round(data.confidence * 100),
           reasons: [
@@ -761,8 +785,8 @@ export default function App() {
                     <div className="space-y-6">
                       <div className="prose max-w-none">
                         <p className="text-gray-700 text-lg leading-relaxed">
-                          Our advanced AI model analyzed the image for digital
-                          artifacts, inconsistencies, and patterns commonly
+                          Our advanced multi-technique AI detection system analyzed the image using frequency domain analysis, 
+                          statistical properties, artifact detection, and deep learning to identify patterns commonly 
                           found in AI-generated content.
                         </p>
                       </div>
@@ -796,6 +820,81 @@ export default function App() {
                           </p>
                         </div>
                       </div>
+
+                      {/* Detailed Analysis Scores */}
+                      {analysisDetails.detailedScores && (
+                        <div className="bg-gray-50 p-6 rounded-xl">
+                          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5 text-green-600" />
+                            Detailed Analysis Scores
+                          </h3>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                              <div className="text-sm font-medium text-gray-600 mb-2">
+                                Frequency Analysis
+                              </div>
+                              <div className="text-2xl font-bold text-blue-600">
+                                {Math.round(analysisDetails.detailedScores.frequency_analysis * 100)}%
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                AI likelihood score
+                              </div>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                              <div className="text-sm font-medium text-gray-600 mb-2">
+                                Statistical Analysis
+                              </div>
+                              <div className="text-2xl font-bold text-green-600">
+                                {Math.round(analysisDetails.detailedScores.statistical_analysis * 100)}%
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                AI likelihood score
+                              </div>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                              <div className="text-sm font-medium text-gray-600 mb-2">
+                                Artifact Analysis
+                              </div>
+                              <div className="text-2xl font-bold text-purple-600">
+                                {Math.round(analysisDetails.detailedScores.artifact_analysis * 100)}%
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                AI likelihood score
+                              </div>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                              <div className="text-sm font-medium text-gray-600 mb-2">
+                                Deep Learning
+                              </div>
+                              <div className="text-2xl font-bold text-orange-600">
+                                {Math.round(analysisDetails.detailedScores.deep_learning_analysis * 100)}%
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                AI likelihood score
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Techniques Used */}
+                          {analysisDetails.techniquesUsed && (
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                              <div className="text-sm font-medium text-gray-600 mb-2">
+                                Analysis Techniques Used:
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {analysisDetails.techniquesUsed.map((technique, index) => (
+                                  <span
+                                    key={index}
+                                    className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full"
+                                  >
+                                    {technique.replace('_', ' ')}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
