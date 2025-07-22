@@ -288,6 +288,7 @@ export default function App() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const loadingMessages = [
     { text: "Initializing analysis...", progress: 10 },
     { text: "Scanning for digital artifacts...", progress: 35 },
@@ -311,7 +312,7 @@ export default function App() {
       }, 2000);
     }
     return () => clearInterval(interval);
-  }, [loadingMessages.length, verificationState]);
+  }, [loadingMessages, loadingMessages.length, verificationState]);
 
   // A derived state to check if there's any content ready to be verified
   const hasContent = useMemo(() => {
