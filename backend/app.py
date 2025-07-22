@@ -19,7 +19,7 @@ from modules.evidence_aggregator import GEARInspiredEvidenceAggregator
 from modules.advanced_verdict_generator import AdvancedVerdictGenerator
 
 # Load environment variables
-load_dotenv()
+load_dotenv('../.env')  # Load from parent directory
 
 # Configure logging
 logging.basicConfig(
@@ -38,6 +38,13 @@ def initialize_components():
     """Initialize all enhanced AI components."""
     logging.info("Initializing VerifAI enhanced components...")
     
+    # Log API key status (without exposing the actual keys)
+    google_api_key = os.getenv('GOOGLE_API_KEY')
+    google_cse_id = os.getenv('GOOGLE_CSE_ID')
+    
+    logging.info(f"Google API Key configured: {'Yes' if google_api_key else 'No'}")
+    logging.info(f"Google CSE ID configured: {'Yes' if google_cse_id else 'No'}")
+    
     config.semantic_analyzer = AdvancedSemanticAnalyzer(
         model_name=os.getenv('SENTENCE_TRANSFORMER_MODEL', 'all-MiniLM-L6-v2')
     )
@@ -45,8 +52,8 @@ def initialize_components():
     config.content_extractor = EnhancedContentExtractor()
     
     config.evidence_retriever = AdvancedEvidenceRetriever(
-        google_api_key=os.getenv('GOOGLE_API_KEY'),
-        google_cse_id=os.getenv('GOOGLE_CSE_ID')
+        google_api_key=google_api_key,
+        google_cse_id=google_cse_id
     )
     
     config.credibility_assessor = SourceCredibilityAssessor()

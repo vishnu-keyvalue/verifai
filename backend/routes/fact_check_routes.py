@@ -185,15 +185,28 @@ def advanced_fact_check_from_text():
         logger.info(f"Analyzing text claim: {claim[:100]}...")
         
         # Direct evidence retrieval for text
+        logger.info("Starting evidence retrieval...")
         evidence_results = asyncio.run(
             config.evidence_retriever.comprehensive_evidence_search(claim, max_results=15)
         )
+        
+        logger.info(f"Evidence retrieval completed. Results: {evidence_results}")
         
         # Process evidence same as URL endpoint
         all_evidence_items = []
         source_analyses = []
         
         for source_type, evidence_list in evidence_results.items():
+            if source_type == 'quota_exceeded':
+                continue  # Skip the quota indicator
+                
+            # Check if evidence_list is actually a list and not an exception
+            if not isinstance(evidence_list, list):
+                logger.warning(f"Skipping {source_type} search results - not a list: {type(evidence_list)}")
+                continue
+                
+            logger.info(f"Processing {source_type} evidence: {len(evidence_list)} items")
+            
             for evidence_item in evidence_list:
                 credibility_analysis = config.credibility_assessor.assess_source_credibility(
                     evidence_item.url, evidence_item.snippet
@@ -212,7 +225,30 @@ def advanced_fact_check_from_text():
                 )
                 all_evidence_items.append(evidence_obj)
         
+        logger.info(f"Total evidence items collected: {len(all_evidence_items)}")
+        
         evidence_assessment = config.evidence_aggregator.aggregate_evidence(claim, all_evidence_items)
+        
+        # Check if we have any evidence to work with
+        if not all_evidence_items:
+            return jsonify({
+                "claim": claim,
+                "verdict": "Insufficient Evidence",
+                "confidence_score": 0.0,
+                "explanation": "Unable to find sufficient evidence to verify this claim. This could be due to the claim being too recent, too specific, or not widely reported.",
+                "evidence_summary": "No evidence sources were found to verify this claim.",
+                "risk_factors": ["Limited evidence available", "Claim may be too recent or too specific"],
+                "verification_suggestions": [
+                    "Try rephrasing the claim with more specific details",
+                    "Check if the claim is from a recent event that may not have been fact-checked yet",
+                    "Consider searching for the claim manually on fact-checking websites"
+                ],
+                "processing_metadata": {
+                    "timestamp": datetime.now().isoformat(),
+                    "version": "2.0-enhanced"
+                }
+            }), 200
+        
         verdict_result = config.verdict_generator.generate_nuanced_verdict(
             claim, evidence_assessment, source_analyses
         )

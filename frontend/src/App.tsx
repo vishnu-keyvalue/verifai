@@ -71,6 +71,21 @@ interface FactCheckResult {
   };
 }
 
+// Type for the Text Fact-Check result (simpler format)
+interface TextFactCheckResult {
+  claim: string;
+  verdict: string;
+  confidence_score: number;
+  explanation: string;
+  evidence_summary: string;
+  risk_factors: string[];
+  verification_suggestions: string[];
+  processing_metadata: {
+    timestamp: string;
+    version: string;
+  };
+}
+
 // --- SVG Icon Components ---
 // It's good practice to define icons as reusable components
 
@@ -234,6 +249,8 @@ export default function App() {
     useState<AnalysisDetails | null>(null);
   const [factCheckResult, setFactCheckResult] =
     useState<FactCheckResult | null>(null);
+  const [textFactCheckResult, setTextFactCheckResult] =
+    useState<TextFactCheckResult | null>(null);
 
   // States for the loading animation
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
@@ -275,6 +292,7 @@ export default function App() {
     setVerificationState("idle");
     setAnalysisDetails(null);
     setFactCheckResult(null);
+    setTextFactCheckResult(null);
   };
 
   const handleVerify = async () => {
@@ -285,6 +303,7 @@ export default function App() {
     // Clear previous results before starting a new analysis
     setAnalysisDetails(null);
     setFactCheckResult(null);
+    setTextFactCheckResult(null);
 
     let endpoint = "";
     let requestBody;
@@ -300,22 +319,33 @@ export default function App() {
       endpoint = "http://127.0.0.1:5001/api/v1/fact-check/url";
       requestBody = JSON.stringify({ url: linkUrl });
       headers["Content-Type"] = "application/json";
+    } else if (activeTab === "text" && pastedText) {
+      endpoint = "http://127.0.0.1:5001/api/v1/fact-check/text";
+      requestBody = JSON.stringify({ text: pastedText });
+      headers["Content-Type"] = "application/json";
     } else {
-      // Placeholder for text verification
-      alert("Text verification is not yet implemented.");
+      alert("No content to verify.");
       setVerificationState("idle");
       return;
     }
 
     try {
+      console.log("Making API call to:", endpoint);
+      console.log("Request body:", requestBody);
+      console.log("Headers:", headers);
+
       const response = await fetch(endpoint, {
         method: "POST",
         body: requestBody,
         headers: headers,
       });
 
+      console.log("Response status:", response.status);
+      console.log("Response ok:", response.ok);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("Error response:", errorData);
         throw new Error(
           errorData.error ||
             `Network response was not ok: ${response.statusText}`
@@ -323,11 +353,15 @@ export default function App() {
       }
 
       const data = await response.json();
+      console.log("Response data:", data);
 
       // Check the structure of the response to determine how to set the state
-      if (data.verdict_analysis) {
-        // This is a fact-check response
+      if (data.verdict_analysis && data.source_content) {
+        // This is a URL fact-check response
         setFactCheckResult(data as FactCheckResult);
+      } else if (data.claim && data.verdict) {
+        // This is a text fact-check response
+        setTextFactCheckResult(data as TextFactCheckResult);
       } else if (data.details && data.details.model_top_prediction) {
         // This is an AI detection response
         setAnalysisDetails({
@@ -380,6 +414,9 @@ export default function App() {
     }
     if (factCheckResult) {
       return factCheckResult.verdict_analysis.verdict;
+    }
+    if (textFactCheckResult) {
+      return textFactCheckResult.verdict;
     }
     return "Analysis Complete";
   };
@@ -715,6 +752,95 @@ export default function App() {
                       </p>
                       <p>
                         Version: {factCheckResult.processing_metadata.version}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Text Fact Check Result Card */}
+                {textFactCheckResult && (
+                  <div>
+                    <div className="mb-6">
+                      <p className="text-gray-600 mb-2">
+                        Claim:{" "}
+                        <span className="font-semibold italic">
+                          "{textFactCheckResult.claim}"
+                        </span>
+                      </p>
+                      <p className="text-lg mb-4">
+                        <span className="font-bold">Verdict:</span>{" "}
+                        {textFactCheckResult.verdict}
+                      </p>
+                      <p className="text-lg mb-4">
+                        <span className="font-bold">Confidence:</span>{" "}
+                        {Math.round(textFactCheckResult.confidence_score * 100)}
+                        %
+                      </p>
+                      <p className="text-gray-700 mb-4">
+                        {textFactCheckResult.explanation}
+                      </p>
+                    </div>
+
+                    {/* Evidence Summary */}
+                    <div className="border-t pt-4 mb-6">
+                      <h3 className="text-lg font-semibold mb-3">
+                        Evidence Summary
+                      </h3>
+                      <p className="text-gray-700 mb-4">
+                        {textFactCheckResult.evidence_summary}
+                      </p>
+                    </div>
+
+                    {/* Risk Factors */}
+                    {textFactCheckResult.risk_factors.length > 0 && (
+                      <div className="border-t pt-4 mb-6">
+                        <h3 className="text-lg font-semibold mb-3 text-red-600">
+                          Risk Factors
+                        </h3>
+                        <ul className="space-y-2">
+                          {textFactCheckResult.risk_factors.map(
+                            (factor: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-red-500 mr-2">•</span>
+                                <span className="text-gray-700">{factor}</span>
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Verification Suggestions */}
+                    {textFactCheckResult.verification_suggestions.length >
+                      0 && (
+                      <div className="border-t pt-4 mb-6">
+                        <h3 className="text-lg font-semibold mb-3 text-blue-600">
+                          Verification Suggestions
+                        </h3>
+                        <ul className="space-y-2">
+                          {textFactCheckResult.verification_suggestions.map(
+                            (suggestion: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-blue-500 mr-2">•</span>
+                                <span className="text-gray-700">
+                                  {suggestion}
+                                </span>
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Processing Info */}
+                    <div className="border-t pt-4 text-xs text-gray-500">
+                      <p>
+                        Version:{" "}
+                        {textFactCheckResult.processing_metadata.version}
+                      </p>
+                      <p>
+                        Timestamp:{" "}
+                        {textFactCheckResult.processing_metadata.timestamp}
                       </p>
                     </div>
                   </div>

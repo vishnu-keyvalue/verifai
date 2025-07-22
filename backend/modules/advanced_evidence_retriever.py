@@ -51,6 +51,8 @@ class AdvancedEvidenceRetriever:
     
     async def comprehensive_evidence_search(self, claim: str, max_results: int = 20) -> Dict[str, List[EvidenceItem]]:
         """Perform multi-strategy evidence retrieval with improved quota handling."""
+        logging.info(f"Starting comprehensive evidence search for claim: {claim[:100]}...")
+        
         evidence_results = {
             'fact_check': [],
             'academic': [],
@@ -60,12 +62,15 @@ class AdvancedEvidenceRetriever:
         
         # Clean the claim first to remove HTML artifacts and metadata
         cleaned_claim = self._clean_claim_for_search(claim)
+        logging.info(f"Cleaned claim: {cleaned_claim[:100]}...")
         
         # Analyze the claim to determine search strategy
         claim_analysis = self._analyze_claim_type(cleaned_claim)
+        logging.info(f"Claim analysis: {claim_analysis}")
         
         # Extract core factual elements for better search targeting
         core_facts = self._extract_core_facts(cleaned_claim)
+        logging.info(f"Core facts extracted: {core_facts}")
         
         # Adjust search priorities based on claim type
         if claim_analysis['is_historical_fact']:
@@ -93,6 +98,8 @@ class AdvancedEvidenceRetriever:
                 self._search_academic_sources_with_core_facts(core_facts, max_results // 6)
             ]
         
+        logging.info(f"Executing {len(tasks)} search tasks...")
+        
         # Execute searches concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
@@ -103,12 +110,14 @@ class AdvancedEvidenceRetriever:
         for i, result in enumerate(results):
             if not isinstance(result, Exception):
                 evidence_results[categories[i]] = result
+                logging.info(f"{categories[i]} search successful: {len(result)} results")
             else:
                 logging.error(f"Error in {categories[i]} search: {result}")
                 if "quota exceeded" in str(result).lower():
                     quota_exceeded = True
         
         evidence_results['quota_exceeded'] = quota_exceeded
+        logging.info(f"Search completed. Total results: {sum(len(v) for k, v in evidence_results.items() if k != 'quota_exceeded')}")
         return evidence_results
     
     def _clean_claim_for_search(self, claim: str) -> str:
@@ -136,7 +145,8 @@ class AdvancedEvidenceRetriever:
             'participants': [],
             'outcome': '',
             'date': '',
-            'location': ''
+            'location': '',
+            'original_claim': claim  # Store the original claim
         }
         
         # Extract year
@@ -466,6 +476,7 @@ class AdvancedEvidenceRetriever:
     
     async def _perform_google_search(self, query: str, num_results: int) -> List[Dict]:
         """Perform Google Custom Search API call with alternative API fallback."""
+        logging.info(f"Performing Google search for query: '{query}'")
         try:
             result = self.search_service.cse().list(
                 q=query,
@@ -474,6 +485,7 @@ class AdvancedEvidenceRetriever:
             ).execute()
             
             items = result.get('items', [])
+            logging.info(f"Google search successful: {len(items)} results")
             return items
             
         except Exception as e:
@@ -496,13 +508,19 @@ class AdvancedEvidenceRetriever:
                     return []
             
             return []
-
+    
     async def _search_news_sources_with_core_facts(self, core_facts: Dict[str, str], num_results: int) -> List[EvidenceItem]:
         """Search news sources using core facts for better targeting."""
         evidence_items = []
         
         # Build targeted search queries using core facts
         search_queries = self._build_targeted_queries(core_facts, 'news')
+        
+        # If no targeted queries, use the original claim
+        if not search_queries:
+            # Extract the original claim from core_facts if available, otherwise use a default
+            original_claim = core_facts.get('original_claim', 'dragon fruit fire-spitting')
+            search_queries = [original_claim]
         
         for query in search_queries[:3]:  # Use top 3 queries
             try:
@@ -530,6 +548,11 @@ class AdvancedEvidenceRetriever:
         
         # Build targeted search queries using core facts
         search_queries = self._build_targeted_queries(core_facts, 'fact_check')
+        
+        # If no targeted queries, use the original claim
+        if not search_queries:
+            original_claim = core_facts.get('original_claim', 'dragon fruit fire-spitting')
+            search_queries = [original_claim]
         
         for site in self.fact_check_sites[:2]:
             for query in search_queries[:2]:
@@ -560,6 +583,11 @@ class AdvancedEvidenceRetriever:
         # Build targeted search queries using core facts
         search_queries = self._build_targeted_queries(core_facts, 'official')
         
+        # If no targeted queries, use the original claim
+        if not search_queries:
+            original_claim = core_facts.get('original_claim', 'dragon fruit fire-spitting')
+            search_queries = [original_claim]
+        
         for query in search_queries[:2]:
             try:
                 results = await self._perform_google_search(query, num_results // 2)
@@ -586,6 +614,11 @@ class AdvancedEvidenceRetriever:
         
         # Build targeted search queries using core facts
         search_queries = self._build_targeted_queries(core_facts, 'academic')
+        
+        # If no targeted queries, use the original claim
+        if not search_queries:
+            original_claim = core_facts.get('original_claim', 'dragon fruit fire-spitting')
+            search_queries = [original_claim]
         
         for query in search_queries[:2]:
             try:
@@ -637,11 +670,20 @@ class AdvancedEvidenceRetriever:
             if core_facts['main_event']:
                 queries.append(f"{core_facts['main_event']} official results")
         
+        # If no queries were built from core facts, use the original claim
+        if not queries:
+            # This will be handled by the calling method using the original claim
+            return []
+        
         return queries
     
     def _is_relevant_to_core_facts(self, search_result: Dict, core_facts: Dict[str, str]) -> bool:
         """Check if search result is relevant to core facts."""
         content = f"{search_result.get('title', '')} {search_result.get('snippet', '')}".lower()
+        
+        # If no specific core facts were extracted, consider it relevant
+        if not core_facts['main_event'] and not core_facts['participants']:
+            return True
         
         # Check for main event
         if core_facts['main_event'] and core_facts['main_event'].lower() not in content:
